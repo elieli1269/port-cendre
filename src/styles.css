@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Source Sans 3", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Oswald", ui-sans-serif, sans-serif;
+  --color-bg: #07090c;
+  --color-fg: #e7e1d6;
+  --color-muted: #93a0aa;
+  --color-primary: #e2a04a;
+  --color-danger: #c44536;
+  --color-border: #2c343e;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+.vignette {
+  background: radial-gradient(ellipse at center, transparent 52%, var(--color-bg) 100%);
+  opacity: 0.62;
+}
+
+.damage-veil {
+  background: radial-gradient(ellipse at center, transparent 35%, var(--color-danger) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .damage-veil {
+    transition: none;
+  }
+}
