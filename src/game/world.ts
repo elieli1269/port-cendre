@@ -267,9 +267,9 @@ export function buildCity(scene: THREE.Scene, renderer: THREE.WebGLRenderer): Ci
   scene.background = new THREE.Color(0x10151c);
   scene.fog = new THREE.FogExp2(0x10151c, 0.016);
 
-  const hemi = new THREE.HemisphereLight(0xb7c4d2, 0x2a2218, 0.85);
+  const hemi = new THREE.HemisphereLight(0xb7c4d2, 0x2a2218, 1.15);
   scene.add(hemi);
-  const moon = new THREE.DirectionalLight(0xd5e2ef, 1.25);
+  const moon = new THREE.DirectionalLight(0xd5e2ef, 1.65);
   moon.position.set(28, 46, 12);
   scene.add(moon);
 
@@ -392,16 +392,20 @@ export function buildCity(scene: THREE.Scene, renderer: THREE.WebGLRenderer): Ci
     });
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(block.hw * 2, block.h, block.hd * 2), mat);
     mesh.position.set(block.x, block.h / 2, block.z);
+    mesh.userData.prop = "block";
     scene.add(mesh);
     const lip = new THREE.Mesh(new THREE.BoxGeometry(block.hw * 2 + 0.35, 0.28, block.hd * 2 + 0.35), lipMat);
     lip.position.set(block.x, block.h + 0.1, block.z);
+    lip.userData.prop = "block";
     scene.add(lip);
     const door = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.15, 0.08), doorMat);
     door.position.set(block.x, 1.08, block.z + block.hd + 0.05);
+    door.userData.prop = "block";
     scene.add(door);
     if (block.style === "tower") {
       const ac = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.55, 0.9), acMat);
       ac.position.set(block.x + block.hw * 0.35, block.h + 0.45, block.z - block.hd * 0.3);
+      ac.userData.prop = "block";
       scene.add(ac);
     }
     const box: Box3 = {
@@ -422,6 +426,7 @@ export function buildCity(scene: THREE.Scene, renderer: THREE.WebGLRenderer): Ci
     matrices.forEach((matrix, index) => mesh.setMatrixAt(index, matrix));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.computeBoundingSphere();
+    mesh.userData.prop = "windows";
     scene.add(mesh);
   };
   addInstanced(warmMatrices, warmMat);
@@ -485,6 +490,7 @@ export function buildCity(scene: THREE.Scene, renderer: THREE.WebGLRenderer): Ci
       }
       g.position.set(x, 0, z);
       g.rotation.y = rot ? Math.PI / 2 : 0;
+      g.userData.prop = "parked";
       return g;
     });
   });

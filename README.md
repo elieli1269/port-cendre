@@ -20,3 +20,6 @@ Puis ouvre l’adresse affichée par le serveur.
 - Monter pour reprendre la voiture.
 
 Fiction originale. Épargne les civils.
+
+Modèles 3D : voitures, immeubles et personnage de Kenney (CC0).
+L’APK debug est dans les releases GitHub. Installe-le en autorisant les applications inconnues. Ce n’est pas une appli du Play Store.

@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { makeActor, type ActorVisual } from "@/game/actors";
+import { makeActor, setActorTemplate, upgradeActor, type ActorVisual } from "@/game/actors";
+import { applyCityModels, loadModels } from "@/game/models";
 import { GameAudio } from "@/game/audio";
 import type { HudSnapshot } from "@/game/types";
 import { WEAPONS, createGuns } from "@/game/weapons";
@@ -212,6 +213,18 @@ export class PortGame {
     this.car = this.buildCar();
     this.scene.add(this.car);
     this.placeCar();
+    void loadModels()
+      .then((kit) => {
+        if (this.dead) return;
+        applyCityModels(this.scene, kit);
+        const sports = kit.cars["sedan-sports"];
+        if (sports) this.mountDriveCar(sports);
+        if (kit.actor) {
+          setActorTemplate(kit.actor, kit.clips);
+          for (const npc of this.npcs) upgradeActor(npc, npc.kind);
+        }
+      })
+      .catch((err) => console.warn("modèles 3D", err));
 
     const signal = this.ac.signal;
     window.addEventListener("keydown", this.onKeyDown, { signal });
@@ -464,7 +477,28 @@ export class PortGame {
     const fx = -Math.sin(this.carYaw);
     const fz = -Math.cos(this.carYaw);
     this.car.lookAt(this.carX + fx, 0, this.carZ + fz);
-    for (const wheel of this.carWheels) wheel.rotation.x = this.carSpin;
+    for (const wheel of this.carWheels) {
+      if (!wheel.userData.spin) wheel.rotation.x = this.carSpin;
+    }
+  }
+
+  private mountDriveCar(template: THREE.Object3D) {
+    this.car.clear();
+    this.carWheels.length = 0;
+    const model = template.clone(true);
+    const measured = new THREE.Box3().setFromObject(template);
+    const size = measured.getSize(new THREE.Vector3());
+    const scale = 4.15 / Math.max(size.z, size.x, 0.01);
+    model.scale.setScalar(scale);
+    model.rotation.y = Math.PI;
+    model.position.y = -measured.min.y * scale;
+    this.car.add(model);
+    model.traverse((obj) => {
+      if (!obj.name.toLowerCase().includes("wheel")) return;
+      obj.userData.spin = true;
+      this.carWheels.push(obj as THREE.Mesh);
+    });
+    this.placeCar();
   }
 
   private simDrive(dt: number, down: (code: string) => boolean) {
@@ -502,6 +536,9 @@ export class PortGame {
     this.vx = fx * this.carSpeed;
     this.vz = fz * this.carSpeed;
     this.carSpin += this.carSpeed * dt * 1.6;
+    for (const wheel of this.carWheels) {
+      if (wheel.userData.spin) wheel.rotateX(this.carSpeed * dt * 1.6);
+    }
     this.placeCar();
 
     if (Math.abs(this.carSpeed) > 6) {
@@ -761,11 +798,23 @@ export class PortGame {
       npc.group.rotation.x = 0;
       if (npc.kind === "hostile") npc.bar.scale.x = clamp(npc.hp / npc.maxHp, 0.05, 1);
       const moving = npc.state === "patrol" || npc.state === "chase" || npc.state === "flee";
-      const swing = Math.sin(npc.phase) * (moving ? 0.75 : 0.12);
-      npc.legs[0].rotation.x = swing;
-      npc.legs[1].rotation.x = -swing;
-      npc.arms[0].rotation.x = -swing * 0.55;
-      npc.arms[1].rotation.x = swing * 0.45;
+      if (npc.mixer) {
+        const gait = moving && npc.run ? "run" : "idle";
+        if (npc.gait !== gait) {
+          const prev = npc.gait === "run" ? npc.run : npc.idle;
+          const next = gait === "run" ? npc.run : npc.idle;
+          prev?.fadeOut(0.12);
+          next?.reset().fadeIn(0.12).play();
+          npc.gait = gait;
+        }
+        npc.mixer.update(dt);
+      } else {
+        const swing = Math.sin(npc.phase) * (moving ? 0.75 : 0.12);
+        npc.legs[0].rotation.x = swing;
+        npc.legs[1].rotation.x = -swing;
+        npc.arms[0].rotation.x = -swing * 0.55;
+        npc.arms[1].rotation.x = swing * 0.45;
+      }
       npc.cloth.emissiveIntensity = npc.flash;
       npc.flash = Math.max(0, npc.flash - dt * 3.2);
     }

@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 
 const torsoGeo = new THREE.BoxGeometry(0.46, 0.62, 0.26);
 const headGeo = new THREE.SphereGeometry(0.16, 10, 8);
@@ -35,7 +36,26 @@ export type ActorVisual = {
   arms: [THREE.Group, THREE.Group];
   bar: THREE.Mesh;
   cloth: THREE.MeshStandardMaterial;
+  mixer: THREE.AnimationMixer | null;
+  idle: THREE.AnimationAction | null;
+  run: THREE.AnimationAction | null;
+  gait: "idle" | "run";
 };
+
+type ActorTemplate = {
+  root: THREE.Object3D;
+  idle: THREE.AnimationClip | null;
+  run: THREE.AnimationClip | null;
+};
+
+let actorTemplate: ActorTemplate | null = null;
+
+export function setActorTemplate(
+  root: THREE.Object3D,
+  clips: { idle: THREE.AnimationClip | null; run: THREE.AnimationClip | null },
+) {
+  actorTemplate = { root, idle: clips.idle, run: clips.run };
+}
 
 function limb(geo: THREE.BoxGeometry, mat: THREE.Material, yPivot: number) {
   const pivot = new THREE.Group();
@@ -47,6 +67,7 @@ function limb(geo: THREE.BoxGeometry, mat: THREE.Material, yPivot: number) {
 }
 
 export function makeActor(kind: "hostile" | "civil"): ActorVisual {
+  if (actorTemplate) return makeRigged(kind);
   const group = new THREE.Group();
   const cloth = (kind === "hostile" ? clothHostile : clothCivil).clone();
   cloth.userData.shared = false;
@@ -86,5 +107,66 @@ export function makeActor(kind: "hostile" | "civil"): ActorVisual {
   bar.visible = kind === "hostile";
   group.add(bar);
 
-  return { group, legs: [legL, legR], arms: [armL, armR], bar, cloth };
+  return { group, legs: [legL, legR], arms: [armL, armR], bar, cloth, mixer: null, idle: null, run: null, gait: "idle" };
+}
+
+const blankLimbs = (): Pick<ActorVisual, "legs" | "arms"> => ({
+  legs: [new THREE.Group(), new THREE.Group()],
+  arms: [new THREE.Group(), new THREE.Group()],
+});
+
+function makeRigged(kind: "hostile" | "civil"): ActorVisual {
+  const source = actorTemplate;
+  if (!source) return makeActor(kind);
+  const group = new THREE.Group();
+  const model = cloneSkinned(source.root) as THREE.Object3D;
+  let cloth: THREE.MeshStandardMaterial | null = null;
+  model.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
+    mat.emissive = new THREE.Color(kind === "hostile" ? 0xc44536 : 0x000000);
+    mat.emissiveIntensity = 0;
+    mesh.material = mat;
+    cloth ??= mat;
+  });
+  group.add(model);
+  if (kind === "hostile") {
+    const band = new THREE.Mesh(bandGeo, bandMat);
+    band.position.set(0, 1.22, 0.18);
+    group.add(band);
+  }
+  const bar = new THREE.Mesh(barGeo, barMat);
+  bar.position.y = 2.05;
+  bar.visible = kind === "hostile";
+  group.add(bar);
+  const mixer = new THREE.AnimationMixer(model);
+  const idle = source.idle ? mixer.clipAction(source.idle) : null;
+  const run = source.run ? mixer.clipAction(source.run) : null;
+  idle?.play();
+  return {
+    group,
+    ...blankLimbs(),
+    bar,
+    cloth: cloth ?? clothCivil.clone(),
+    mixer,
+    idle,
+    run,
+    gait: "idle",
+  };
+}
+
+export function upgradeActor(actor: ActorVisual, kind: "hostile" | "civil") {
+  if (!actorTemplate) return;
+  const next = makeRigged(kind);
+  actor.group.clear();
+  for (const child of [...next.group.children]) actor.group.add(child);
+  actor.bar = next.bar;
+  actor.cloth = next.cloth;
+  actor.mixer = next.mixer;
+  actor.idle = next.idle;
+  actor.run = next.run;
+  actor.gait = "idle";
+  actor.legs = next.legs;
+  actor.arms = next.arms;
 }
